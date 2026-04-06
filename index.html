@@ -210,13 +210,19 @@ function loadBrandImages() {
 
   const promises = Object.entries(uniqueLogos).map(([path, brand]) => {
     return new Promise(resolve => {
-      map.loadImage(path, (err, image) => {
-        if (!err && image) {
-          map.addImage('brand-' + brand, image);
+      const img = new Image();
+      const timeout = setTimeout(() => { img.src = ''; resolve(); }, 5000);
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        clearTimeout(timeout);
+        try {
+          map.addImage('brand-' + brand, img, { pixelRatio: 2 });
           loadedBrandImages.add(brand);
-        }
+        } catch (e) { /* image already exists or invalid */ }
         resolve();
-      });
+      };
+      img.onerror = () => { clearTimeout(timeout); resolve(); };
+      img.src = path;
     });
   });
 
