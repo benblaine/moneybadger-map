@@ -169,47 +169,29 @@ const overlay = document.getElementById('overlay');
 
 fetch('merchants.json')
   .then(r => {
-    window._dbg = ['fetch status: ' + r.status];
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
   })
   .then(data => {
-    window._dbg.push('parsed features: ' + (data.features ? data.features.length : 'NO FEATURES'));
-    window._dbg.push('map loaded: ' + map.loaded());
     allData = data;
     overlay.classList.remove('active');
     overlay.innerHTML = '';
-    map.on('load', () => {
-      window._dbg.push('map load event fired');
-      tryInitLayers();
-    });
-    if (map.loaded()) {
-      window._dbg.push('map already loaded, calling tryInitLayers');
-      tryInitLayers();
-    }
+    map.on('load', () => tryInitLayers());
+    if (map.loaded()) tryInitLayers();
   })
   .catch(err => {
-    (window._dbg = window._dbg || []).push('FETCH ERROR: ' + err.message);
     console.error('Failed to load merchants.json:', err);
     overlay.innerHTML = '<h2>Failed to load merchants</h2><p>' + (err.message || 'Network error') + '</p><button onclick="location.reload()">Retry</button>';
   });
 
 function tryInitLayers() {
-  window._dbg.push('tryInitLayers called, already init: ' + layersInitialized);
   if (layersInitialized) return;
   layersInitialized = true;
+  initLayers();
+  // Load brand images in background — pins show as colored dots until logos arrive
   loadBrandImages().then(() => {
-    window._dbg.push('brand images loaded: ' + loadedBrandImages.size + ' brands: ' + [...loadedBrandImages].join(','));
-    initLayers();
-    window._dbg.push('initLayers complete');
-    const src = map.getSource('merchants');
-    window._dbg.push('source exists: ' + !!src);
-    const data = getFilteredData();
-    window._dbg.push('filtered features: ' + data.features.length);
-    window._dbg.push('--- DONE. Copy this: JSON.parse(JSON.stringify(window._dbg)) ---');
-  }).catch(err => {
-    window._dbg.push('BRAND IMAGE ERROR: ' + err.message);
-  });
+    if (loadedBrandImages.size > 0) updateMap();
+  }).catch(() => {});
 }
 
 function loadBrandImages() {
