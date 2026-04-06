@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MoneyBadger — Bitcoin Accepted Here</title>
+  <meta name="description" content="Find merchants across South Africa that accept Bitcoin payments via MoneyBadger Lightning.">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.css">
+  <script src="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap');
+    :root {
+      --amber: #F5A623;
+      --amber-hover: #E09620;
+      --btc: #F7931A;
+      --black: #1A1A1A;
+      --grey: #4A4A4A;
+      --light: #F5F5F5;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'DM Sans',-apple-system,sans-serif; background:#111; color:#fff; overflow:hidden; height:100vh; }
+
+    /* Header */
+    .hdr { position:fixed; top:0; left:0; right:0; z-index:100; background:var(--black); border-bottom:1px solid rgba(255,255,255,.06); display:flex; align-items:center; justify-content:space-between; padding:0 24px; height:56px; }
+    .hdr-logo { height:30px; width:auto; }
+    .hdr-r { display:flex; align-items:center; gap:14px; }
+    .hdr-count { font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:600; color:var(--amber); letter-spacing:.6px; text-transform:uppercase; }
+    .hdr-cta { font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:600; background:var(--amber); color:var(--black); border:none; padding:7px 14px; border-radius:8px; cursor:pointer; text-decoration:none; transition:background .2s; }
+    .hdr-cta:hover { background:var(--amber-hover); }
+
+    /* Map */
+    #map { position:fixed; top:56px; left:0; right:0; bottom:0; }
+
+    /* Filters */
+    .filters { position:fixed; top:72px; left:16px; z-index:90; background:rgba(26,26,26,.95); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:6px; max-width:200px; }
+    .filters h3 { font-family:'Space Grotesk',sans-serif; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:1.2px; color:rgba(255,255,255,.4); margin-bottom:2px; }
+    .fbtn { display:flex; align-items:center; gap:8px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); border-radius:8px; padding:7px 10px; color:#fff; font-family:'DM Sans',sans-serif; font-size:12px; cursor:pointer; transition:all .15s; user-select:none; }
+    .fbtn:hover { background:rgba(255,255,255,.08); }
+    .fbtn.on { background:rgba(245,166,35,.1); border-color:var(--amber); color:var(--amber); }
+    .fbtn .dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
+    /* Search */
+    .srch { position:fixed; top:72px; right:16px; z-index:90; }
+    .srch input { background:rgba(26,26,26,.95); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px 14px 10px 36px; color:#fff; font-family:'DM Sans',sans-serif; font-size:13px; width:260px; outline:none; transition:border .2s; }
+    .srch input::placeholder { color:rgba(255,255,255,.3); }
+    .srch input:focus { border-color:var(--amber); }
+    .srch svg { position:absolute; left:12px; top:50%; transform:translateY(-50%); pointer-events:none; }
+
+    /* Popup */
+    .maplibregl-popup-content { background:var(--black)!important; color:#fff!important; border:1px solid rgba(255,255,255,.1)!important; border-radius:12px!important; padding:0!important; min-width:220px; max-width:280px; box-shadow:0 8px 32px rgba(0,0,0,.5)!important; overflow:hidden; }
+    .maplibregl-popup-tip { border-top-color:var(--black)!important; }
+    .maplibregl-popup-close-button { color:rgba(255,255,255,.4)!important; font-size:18px!important; right:6px!important; top:4px!important; }
+    .maplibregl-popup-close-button:hover { color:#fff!important; background:transparent!important; }
+    .pop { padding:14px; }
+    .pop-cat { font-family:'Space Grotesk',sans-serif; font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:1.2px; color:var(--amber); margin-bottom:4px; }
+    .pop-name { font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:700; margin-bottom:4px; line-height:1.25; }
+    .pop-addr { font-size:12px; color:rgba(255,255,255,.55); line-height:1.35; margin-bottom:10px; }
+    .pop-badge { display:inline-flex; align-items:center; gap:5px; background:rgba(245,166,35,.08); border:1px solid rgba(245,166,35,.2); border-radius:6px; padding:3px 8px; font-size:10px; font-weight:600; color:var(--amber); }
+    .pop-img { width:100%; height:100px; object-fit:cover; display:block; }
+
+    /* Responsive */
+    @media(max-width:640px) {
+      .filters { top:auto; bottom:16px; left:12px; right:12px; max-width:none; flex-direction:row; flex-wrap:wrap; padding:10px; gap:6px; }
+      .filters h3 { display:none; }
+      .srch { left:16px; right:16px; }
+      .srch input { width:100%; }
+      .hdr-cta { display:none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="hdr">
+  <img class="hdr-logo" src="assets/moneybadger-logo-on-black.svg" alt="MoneyBadger">
+  <div class="hdr-r">
+    <span class="hdr-count" id="count"></span>
+    <a class="hdr-cta" href="https://moneybadger.co.za" target="_blank">Accept Bitcoin →</a>
+  </div>
+</div>
+
+<div class="filters" id="filters">
+  <h3>Filter</h3>
+  <button class="fbtn on" data-cat="all"><span class="dot" style="background:var(--amber)"></span>All</button>
+  <button class="fbtn" data-cat="fuel"><span class="dot" style="background:#4FC3F7"></span>Fuel</button>
+  <button class="fbtn" data-cat="retail"><span class="dot" style="background:#81C784"></span>Retail</button>
+  <button class="fbtn" data-cat="food"><span class="dot" style="background:#FF8A65"></span>Food</button>
+  <button class="fbtn" data-cat="community"><span class="dot" style="background:#CE93D8"></span>Community</button>
+</div>
+
+<div class="srch">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  <input id="search" type="text" placeholder="Search merchants…">
+</div>
+
+<div id="map"></div>
+
+<script>
+const CATEGORY_COLORS = {
+  fuel:      '#4FC3F7',
+  retail:    '#81C784',
+  food:      '#FF8A65',
+  community: '#CE93D8',
+  other:     '#F5A623'
+};
+
+let allData = null;
+let activeFilter = 'all';
+let searchQuery = '';
+let map, popup;
+
+// ── Init Map ──
+map = new maplibregl.Map({
+  container: 'map',
+  style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  center: [25.5, -29.0],
+  zoom: 5.2,
+  attributionControl: false
+});
+
+map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+
+// ── Load Data ──
+fetch('merchants.json')
+  .then(r => r.json())
+  .then(data => {
+    allData = data;
+    map.on('load', () => initLayers());
+    if (map.loaded()) initLayers();
+  })
+  .catch(err => console.error('Failed to load merchants.json:', err));
+
+function getFilteredData() {
+  if (!allData) return { type: 'FeatureCollection', features: [] };
+  let features = allData.features;
+  if (activeFilter !== 'all') {
+    features = features.filter(f => f.properties.category === activeFilter);
+  }
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    features = features.filter(f =>
+      f.properties.name.toLowerCase().includes(q) ||
+      f.properties.address.toLowerCase().includes(q)
+    );
+  }
+  document.getElementById('count').textContent = features.length + ' merchant' + (features.length !== 1 ? 's' : '');
+  return { type: 'FeatureCollection', features };
+}
+
+function initLayers() {
+  map.addSource('merchants', {
+    type: 'geojson',
+    data: getFilteredData(),
+    cluster: true,
+    clusterMaxZoom: 14,
+    clusterRadius: 50
+  });
+
+  // Cluster circles
+  map.addLayer({
+    id: 'clusters',
+    type: 'circle',
+    source: 'merchants',
+    filter: ['has', 'point_count'],
+    paint: {
+      'circle-color': '#F5A623',
+      'circle-radius': ['step', ['get', 'point_count'], 18, 10, 24, 50, 32],
+      'circle-stroke-width': 3,
+      'circle-stroke-color': 'rgba(245,166,35,0.25)'
+    }
+  });
+
+  // Cluster count text
+  map.addLayer({
+    id: 'cluster-count',
+    type: 'symbol',
+    source: 'merchants',
+    filter: ['has', 'point_count'],
+    layout: {
+      'text-field': '{point_count_abbreviated}',
+      'text-size': 13,
+      'text-font': ['Open Sans Bold']
+    },
+    paint: { 'text-color': '#1A1A1A' }
+  });
+
+  // Individual pins
+  map.addLayer({
+    id: 'pins',
+    type: 'circle',
+    source: 'merchants',
+    filter: ['!', ['has', 'point_count']],
+    paint: {
+      'circle-radius': 7,
+      'circle-color': [
+        'match', ['get', 'category'],
+        'fuel', CATEGORY_COLORS.fuel,
+        'retail', CATEGORY_COLORS.retail,
+        'food', CATEGORY_COLORS.food,
+        'community', CATEGORY_COLORS.community,
+        CATEGORY_COLORS.other
+      ],
+      'circle-stroke-width': 2.5,
+      'circle-stroke-color': 'rgba(255,255,255,0.15)'
+    }
+  });
+
+  // Glow effect
+  map.addLayer({
+    id: 'pin-glow',
+    type: 'circle',
+    source: 'merchants',
+    filter: ['!', ['has', 'point_count']],
+    paint: {
+      'circle-radius': 16,
+      'circle-color': [
+        'match', ['get', 'category'],
+        'fuel', CATEGORY_COLORS.fuel,
+        'retail', CATEGORY_COLORS.retail,
+        'food', CATEGORY_COLORS.food,
+        'community', CATEGORY_COLORS.community,
+        CATEGORY_COLORS.other
+      ],
+      'circle-opacity': 0.12
+    }
+  }, 'pins');
+
+  // Interactivity
+  map.on('click', 'clusters', (e) => {
+    const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] });
+    const clusterId = features[0].properties.cluster_id;
+    map.getSource('merchants').getClusterExpansionZoom(clusterId, (err, zoom) => {
+      if (err) return;
+      map.easeTo({ center: features[0].geometry.coordinates, zoom });
+    });
+  });
+
+  map.on('click', 'pins', (e) => {
+    const f = e.features[0];
+    const props = f.properties;
+    const coords = f.geometry.coordinates.slice();
+
+    let html = '';
+    if (props.image) {
+      html += `<img class="pop-img" src="${props.image}" alt="${props.name}">`;
+    }
+    html += `<div class="pop">`;
+    html += `<div class="pop-cat">${props.category || 'Merchant'}</div>`;
+    html += `<div class="pop-name">${props.name}</div>`;
+    html += `<div class="pop-addr">${props.address}</div>`;
+    html += `<div class="pop-badge">⚡ Lightning Accepted</div>`;
+    html += `</div>`;
+
+    if (popup) popup.remove();
+    popup = new maplibregl.Popup({ offset: 12, maxWidth: '280px' })
+      .setLngLat(coords)
+      .setHTML(html)
+      .addTo(map);
+  });
+
+  map.on('mouseenter', 'pins', () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', 'pins', () => map.getCanvas().style.cursor = '');
+  map.on('mouseenter', 'clusters', () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', 'clusters', () => map.getCanvas().style.cursor = '');
+}
+
+function updateMap() {
+  const src = map.getSource('merchants');
+  if (src) src.setData(getFilteredData());
+}
+
+// ── Filters ──
+document.querySelectorAll('.fbtn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    activeFilter = btn.dataset.cat;
+    updateMap();
+  });
+});
+
+// ── Search ──
+let searchTimer;
+document.getElementById('search').addEventListener('input', (e) => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    searchQuery = e.target.value;
+    updateMap();
+    // Fly to first result
+    const filtered = getFilteredData();
+    if (filtered.features.length === 1) {
+      map.flyTo({ center: filtered.features[0].geometry.coordinates, zoom: 14 });
+    }
+  }, 250);
+});
+</script>
+
+</body>
+</html>
