@@ -15,7 +15,7 @@ try {
   process.exit(1);
 }
 
-const VALID_CATEGORIES = ['fuel', 'retail', 'food', 'community', 'other'];
+const VALID_CATEGORIES = ['fuel', 'restaurant', 'grocery', 'retail', 'cafe', 'pharmacy', 'community', 'services', 'other'];
 const LON_MIN = 16, LON_MAX = 33, LAT_MIN = -35, LAT_MAX = -22;
 const HTML_PATTERN = /<[^>]*>/;
 

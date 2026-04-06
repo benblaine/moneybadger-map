@@ -31,6 +31,8 @@
     .hdr-count { font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:600; color:var(--amber); letter-spacing:.6px; text-transform:uppercase; }
     .hdr-cta { font-family:'Space Grotesk',sans-serif; font-size:12px; font-weight:600; background:var(--amber); color:var(--black); border:none; padding:7px 14px; border-radius:8px; cursor:pointer; text-decoration:none; transition:background .2s; }
     .hdr-cta:hover { background:var(--amber-hover); }
+    .hdr-cta-outline { background:transparent; border:1px solid var(--amber); color:var(--amber); }
+    .hdr-cta-outline:hover { background:rgba(245,166,35,.1); }
 
     /* Map */
     #map { position:fixed; top:56px; left:0; right:0; bottom:0; }
@@ -86,6 +88,7 @@
   <img class="hdr-logo" src="assets/moneybadger-logo-on-black.svg" alt="MoneyBadger">
   <div class="hdr-r">
     <span class="hdr-count" id="count"></span>
+    <a class="hdr-cta hdr-cta-outline" href="https://moneybadger.co.za/stores" target="_blank">Store Directory</a>
     <a class="hdr-cta" href="https://moneybadger.co.za" target="_blank">Accept Bitcoin →</a>
   </div>
 </div>
@@ -94,8 +97,13 @@
   <h3>Filter</h3>
   <button class="fbtn on" data-cat="all"><span class="dot" style="background:var(--amber)"></span>All</button>
   <button class="fbtn" data-cat="fuel"><span class="dot" style="background:#4FC3F7"></span>Fuel</button>
-  <button class="fbtn" data-cat="retail"><span class="dot" style="background:#81C784"></span>Retail</button>
-  <button class="fbtn" data-cat="food"><span class="dot" style="background:#FF8A65"></span>Food</button>
+  <button class="fbtn" data-cat="grocery"><span class="dot" style="background:#81C784"></span>Grocery</button>
+  <button class="fbtn" data-cat="restaurant"><span class="dot" style="background:#FF8A65"></span>Restaurant</button>
+  <button class="fbtn" data-cat="cafe"><span class="dot" style="background:#FFD54F"></span>Cafe</button>
+  <button class="fbtn" data-cat="pharmacy"><span class="dot" style="background:#EF5350"></span>Pharmacy</button>
+  <button class="fbtn" data-cat="retail"><span class="dot" style="background:#F5A623"></span>Retail</button>
+  <button class="fbtn" data-cat="services"><span class="dot" style="background:#4DD0E1"></span>Services</button>
+  <button class="fbtn" data-cat="community"><span class="dot" style="background:#CE93D8"></span>Community</button>
 </div>
 
 <div class="srch">
@@ -111,11 +119,15 @@
 
 <script>
 const CATEGORY_COLORS = {
-  fuel:      '#4FC3F7',
-  retail:    '#81C784',
-  food:      '#FF8A65',
-  community: '#CE93D8',
-  other:     '#F5A623'
+  fuel:       '#4FC3F7',
+  restaurant: '#FF8A65',
+  grocery:    '#81C784',
+  retail:     '#F5A623',
+  cafe:       '#FFD54F',
+  pharmacy:   '#EF5350',
+  community:  '#CE93D8',
+  services:   '#4DD0E1',
+  other:      '#9E9E9E'
 };
 
 // Brand-to-logo mapping: lowercase name substring → logo filename
@@ -324,9 +336,13 @@ function initLayers() {
       'circle-color': [
         'match', ['get', 'category'],
         'fuel', CATEGORY_COLORS.fuel,
+        'restaurant', CATEGORY_COLORS.restaurant,
+        'grocery', CATEGORY_COLORS.grocery,
         'retail', CATEGORY_COLORS.retail,
-        'food', CATEGORY_COLORS.food,
+        'cafe', CATEGORY_COLORS.cafe,
+        'pharmacy', CATEGORY_COLORS.pharmacy,
         'community', CATEGORY_COLORS.community,
+        'services', CATEGORY_COLORS.services,
         CATEGORY_COLORS.other
       ],
       'circle-opacity': 0.12
@@ -344,9 +360,13 @@ function initLayers() {
       'circle-color': [
         'match', ['get', 'category'],
         'fuel', CATEGORY_COLORS.fuel,
+        'restaurant', CATEGORY_COLORS.restaurant,
+        'grocery', CATEGORY_COLORS.grocery,
         'retail', CATEGORY_COLORS.retail,
-        'food', CATEGORY_COLORS.food,
+        'cafe', CATEGORY_COLORS.cafe,
+        'pharmacy', CATEGORY_COLORS.pharmacy,
         'community', CATEGORY_COLORS.community,
+        'services', CATEGORY_COLORS.services,
         CATEGORY_COLORS.other
       ],
       'circle-stroke-width': 2.5,
