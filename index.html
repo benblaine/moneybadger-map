@@ -317,7 +317,7 @@ function initLayers() {
     id: 'pin-glow',
     type: 'circle',
     source: 'merchants',
-    filter: ['all', ['!', ['has', 'point_count']], ['!', ['has', 'brand']]],
+    filter: ['!', ['has', 'point_count']],
     paint: {
       'circle-radius': 16,
       'circle-color': [
@@ -332,12 +332,12 @@ function initLayers() {
     }
   });
 
-  // Individual pins (colored dots for non-branded merchants)
+  // Individual pins (colored dots for ALL merchants — brand logos layer on top)
   map.addLayer({
     id: 'pins',
     type: 'circle',
     source: 'merchants',
-    filter: ['all', ['!', ['has', 'point_count']], ['!', ['has', 'brand']]],
+    filter: ['!', ['has', 'point_count']],
     paint: {
       'circle-radius': 7,
       'circle-color': [
