@@ -122,12 +122,10 @@ const CATEGORY_COLORS = {
 const BRAND_LOGOS = {
   'shell':           'assets/logos/shell.png',
   'engen':           'assets/logos/engen.png',
-  'pick n pay':      'assets/logos/picknpay.png',
   'wimpy':           'assets/logos/wimpy.png',
   'mugg & bean':     'assets/logos/muggandbean.png',
   'spur':            'assets/logos/spur.png',
   'rocomamas':       'assets/logos/rocomamas.png',
-  'bootlegger':      'assets/logos/bootlegger.png',
   'panarottis':      'assets/logos/panarottis.png',
   'spar':            'assets/logos/spar.png',
   'ocean basket':    'assets/logos/oceanbasket.png',
@@ -203,6 +201,7 @@ function tryInitLayers() {
 }
 
 function loadBrandImages() {
+  const SIZE = 64;
   const uniqueLogos = {};
   for (const [brand, path] of Object.entries(BRAND_LOGOS)) {
     if (!uniqueLogos[path]) uniqueLogos[path] = brand;
@@ -216,7 +215,14 @@ function loadBrandImages() {
       img.onload = () => {
         clearTimeout(timeout);
         try {
-          map.addImage('brand-' + brand, img, { pixelRatio: 2 });
+          // Normalize all logos to 64x64 via canvas
+          const canvas = document.createElement('canvas');
+          canvas.width = SIZE;
+          canvas.height = SIZE;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, SIZE, SIZE);
+          const imageData = ctx.getImageData(0, 0, SIZE, SIZE);
+          map.addImage('brand-' + brand, imageData, { pixelRatio: 2 });
           loadedBrandImages.add(brand);
         } catch (e) { /* image already exists or invalid */ }
         resolve();
