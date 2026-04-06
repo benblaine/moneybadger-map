@@ -5,8 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MoneyBadger — Bitcoin Accepted Here</title>
   <meta name="description" content="Find merchants across South Africa that accept Bitcoin payments via MoneyBadger Lightning.">
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.css">
-  <script src="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.css"
+        integrity="sha384-m6tadjb5ohv1Fw3GJynIWn5c1scKfW7kxSXuDrhlq1gdXPn7I7UL0sSKDfCUErOb"
+        crossorigin="anonymous">
+  <script src="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.js"
+          integrity="sha384-q3AR0wM1VzQVRnZgwc2pyYPArgjMNrAXLctZcYa7rBd1y1O1UanRgDrlJN913Gt5"
+          crossorigin="anonymous"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap');
     :root {
@@ -58,6 +62,14 @@
     .pop-badge { display:inline-flex; align-items:center; gap:5px; background:rgba(245,166,35,.08); border:1px solid rgba(245,166,35,.2); border-radius:6px; padding:3px 8px; font-size:10px; font-weight:600; color:var(--amber); }
     .pop-img { width:100%; height:100px; object-fit:cover; display:block; }
 
+    /* Loading / Error / Empty states */
+    .overlay-msg { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:80; text-align:center; pointer-events:none; }
+    .overlay-msg.active { pointer-events:auto; }
+    .overlay-msg h2 { font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:600; color:rgba(255,255,255,.6); margin-bottom:8px; }
+    .overlay-msg p { font-size:13px; color:rgba(255,255,255,.35); }
+    .overlay-msg button { font-family:'DM Sans',sans-serif; font-size:13px; background:var(--amber); color:var(--black); border:none; padding:8px 16px; border-radius:8px; cursor:pointer; margin-top:12px; font-weight:600; }
+    .overlay-msg button:hover { background:var(--amber-hover); }
+
     /* Responsive */
     @media(max-width:640px) {
       .filters { top:auto; bottom:16px; left:12px; right:12px; max-width:none; flex-direction:row; flex-wrap:wrap; padding:10px; gap:6px; }
@@ -84,12 +96,15 @@
   <button class="fbtn" data-cat="fuel"><span class="dot" style="background:#4FC3F7"></span>Fuel</button>
   <button class="fbtn" data-cat="retail"><span class="dot" style="background:#81C784"></span>Retail</button>
   <button class="fbtn" data-cat="food"><span class="dot" style="background:#FF8A65"></span>Food</button>
-  <button class="fbtn" data-cat="community"><span class="dot" style="background:#CE93D8"></span>Community</button>
 </div>
 
 <div class="srch">
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
   <input id="search" type="text" placeholder="Search merchants…">
+</div>
+
+<div id="overlay" class="overlay-msg active">
+  <h2>Loading merchants…</h2>
 </div>
 
 <div id="map"></div>
@@ -103,10 +118,39 @@ const CATEGORY_COLORS = {
   other:     '#F5A623'
 };
 
+// Brand-to-logo mapping: lowercase name substring → logo filename
+const BRAND_LOGOS = {
+  'shell':           'assets/logos/shell.png',
+  'engen':           'assets/logos/engen.png',
+  'pick n pay':      'assets/logos/picknpay.png',
+  'wimpy':           'assets/logos/wimpy.png',
+  'mugg & bean':     'assets/logos/muggandbean.png',
+  'spur':            'assets/logos/spur.png',
+  'rocomamas':       'assets/logos/rocomamas.png',
+  'bootlegger':      'assets/logos/bootlegger.png',
+  'panarottis':      'assets/logos/panarottis.png',
+  'spar':            'assets/logos/spar.png',
+  'ocean basket':    'assets/logos/oceanbasket.png',
+  "nando's":         'assets/logos/nandos.png',
+  'nandos':          'assets/logos/nandos.png',
+  'seattle coffee':  'assets/logos/seattlecoffee.png',
+  'doppio':          'assets/logos/doppioespresso.png'
+};
+
 let allData = null;
 let activeFilter = 'all';
 let searchQuery = '';
 let map, popup;
+let layersInitialized = false;
+const loadedBrandImages = new Set();
+
+function getBrand(name) {
+  const lower = name.toLowerCase();
+  for (const key of Object.keys(BRAND_LOGOS)) {
+    if (lower.includes(key)) return key;
+  }
+  return null;
+}
 
 // ── Init Map ──
 map = new maplibregl.Map({
@@ -121,14 +165,51 @@ map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
 map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
 
 // ── Load Data ──
+const overlay = document.getElementById('overlay');
+
 fetch('merchants.json')
-  .then(r => r.json())
+  .then(r => {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  })
   .then(data => {
     allData = data;
-    map.on('load', () => initLayers());
-    if (map.loaded()) initLayers();
+    overlay.classList.remove('active');
+    overlay.innerHTML = '';
+    map.on('load', () => tryInitLayers());
+    if (map.loaded()) tryInitLayers();
   })
-  .catch(err => console.error('Failed to load merchants.json:', err));
+  .catch(err => {
+    console.error('Failed to load merchants.json:', err);
+    overlay.innerHTML = '<h2>Failed to load merchants</h2><p>' + (err.message || 'Network error') + '</p><button onclick="location.reload()">Retry</button>';
+  });
+
+function tryInitLayers() {
+  if (layersInitialized) return;
+  layersInitialized = true;
+  loadBrandImages().then(() => initLayers());
+}
+
+function loadBrandImages() {
+  const uniqueLogos = {};
+  for (const [brand, path] of Object.entries(BRAND_LOGOS)) {
+    if (!uniqueLogos[path]) uniqueLogos[path] = brand;
+  }
+
+  const promises = Object.entries(uniqueLogos).map(([path, brand]) => {
+    return new Promise(resolve => {
+      map.loadImage(path, (err, image) => {
+        if (!err && image) {
+          map.addImage('brand-' + brand, image);
+          loadedBrandImages.add(brand);
+        }
+        resolve();
+      });
+    });
+  });
+
+  return Promise.all(promises);
+}
 
 function getFilteredData() {
   if (!allData) return { type: 'FeatureCollection', features: [] };
@@ -143,7 +224,30 @@ function getFilteredData() {
       f.properties.address.toLowerCase().includes(q)
     );
   }
+
+  // Add brand property for logo pins
+  features = features.map(f => {
+    const brand = getBrand(f.properties.name);
+    if (brand && loadedBrandImages.has(brand)) {
+      return {
+        ...f,
+        properties: { ...f.properties, brand: brand }
+      };
+    }
+    return f;
+  });
+
   document.getElementById('count').textContent = features.length + ' merchant' + (features.length !== 1 ? 's' : '');
+
+  // Show/hide empty state
+  if (features.length === 0 && allData.features.length > 0) {
+    overlay.innerHTML = '<h2>No merchants found</h2><p>Try a different search or filter</p>';
+    overlay.classList.add('active');
+  } else {
+    overlay.innerHTML = '';
+    overlay.classList.remove('active');
+  }
+
   return { type: 'FeatureCollection', features };
 }
 
@@ -184,12 +288,32 @@ function initLayers() {
     paint: { 'text-color': '#1A1A1A' }
   });
 
-  // Individual pins
+  // Glow effect (behind pins)
+  map.addLayer({
+    id: 'pin-glow',
+    type: 'circle',
+    source: 'merchants',
+    filter: ['all', ['!', ['has', 'point_count']], ['!', ['has', 'brand']]],
+    paint: {
+      'circle-radius': 16,
+      'circle-color': [
+        'match', ['get', 'category'],
+        'fuel', CATEGORY_COLORS.fuel,
+        'retail', CATEGORY_COLORS.retail,
+        'food', CATEGORY_COLORS.food,
+        'community', CATEGORY_COLORS.community,
+        CATEGORY_COLORS.other
+      ],
+      'circle-opacity': 0.12
+    }
+  });
+
+  // Individual pins (colored dots for non-branded merchants)
   map.addLayer({
     id: 'pins',
     type: 'circle',
     source: 'merchants',
-    filter: ['!', ['has', 'point_count']],
+    filter: ['all', ['!', ['has', 'point_count']], ['!', ['has', 'brand']]],
     paint: {
       'circle-radius': 7,
       'circle-color': [
@@ -205,25 +329,20 @@ function initLayers() {
     }
   });
 
-  // Glow effect
+  // Brand logo pins (for merchants with recognized brands)
   map.addLayer({
-    id: 'pin-glow',
-    type: 'circle',
+    id: 'brand-pins',
+    type: 'symbol',
     source: 'merchants',
-    filter: ['!', ['has', 'point_count']],
-    paint: {
-      'circle-radius': 16,
-      'circle-color': [
-        'match', ['get', 'category'],
-        'fuel', CATEGORY_COLORS.fuel,
-        'retail', CATEGORY_COLORS.retail,
-        'food', CATEGORY_COLORS.food,
-        'community', CATEGORY_COLORS.community,
-        CATEGORY_COLORS.other
-      ],
-      'circle-opacity': 0.12
+    filter: ['all', ['!', ['has', 'point_count']], ['has', 'brand']],
+    layout: {
+      'icon-image': ['concat', 'brand-', ['get', 'brand']],
+      'icon-size': 0.45,
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': false,
+      'icon-padding': 2
     }
-  }, 'pins');
+  });
 
   // Interactivity
   map.on('click', 'clusters', (e) => {
@@ -235,31 +354,62 @@ function initLayers() {
     });
   });
 
-  map.on('click', 'pins', (e) => {
+  function showPopup(e) {
     const f = e.features[0];
     const props = f.properties;
     const coords = f.geometry.coordinates.slice();
 
-    let html = '';
-    if (props.image) {
-      html += `<img class="pop-img" src="${props.image}" alt="${props.name}">`;
+    // Build popup with DOM APIs (XSS-safe)
+    const container = document.createElement('div');
+
+    // Image (if present and valid URL)
+    if (props.image && /^https?:\/\//.test(props.image)) {
+      const img = document.createElement('img');
+      img.className = 'pop-img';
+      img.src = props.image;
+      img.alt = props.name || 'Merchant';
+      container.appendChild(img);
     }
-    html += `<div class="pop">`;
-    html += `<div class="pop-cat">${props.category || 'Merchant'}</div>`;
-    html += `<div class="pop-name">${props.name}</div>`;
-    html += `<div class="pop-addr">${props.address}</div>`;
-    html += `<div class="pop-badge">⚡ Lightning Accepted</div>`;
-    html += `</div>`;
+
+    const pop = document.createElement('div');
+    pop.className = 'pop';
+
+    const cat = document.createElement('div');
+    cat.className = 'pop-cat';
+    cat.textContent = props.category || 'Merchant';
+    pop.appendChild(cat);
+
+    const name = document.createElement('div');
+    name.className = 'pop-name';
+    name.textContent = props.name || 'Unknown merchant';
+    pop.appendChild(name);
+
+    const addr = document.createElement('div');
+    addr.className = 'pop-addr';
+    addr.textContent = props.address || '';
+    pop.appendChild(addr);
+
+    const badge = document.createElement('div');
+    badge.className = 'pop-badge';
+    badge.textContent = '\u26A1 Lightning Accepted';
+    pop.appendChild(badge);
+
+    container.appendChild(pop);
 
     if (popup) popup.remove();
     popup = new maplibregl.Popup({ offset: 12, maxWidth: '280px' })
       .setLngLat(coords)
-      .setHTML(html)
+      .setDOMContent(container)
       .addTo(map);
-  });
+  }
+
+  map.on('click', 'pins', showPopup);
+  map.on('click', 'brand-pins', showPopup);
 
   map.on('mouseenter', 'pins', () => map.getCanvas().style.cursor = 'pointer');
   map.on('mouseleave', 'pins', () => map.getCanvas().style.cursor = '');
+  map.on('mouseenter', 'brand-pins', () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', 'brand-pins', () => map.getCanvas().style.cursor = '');
   map.on('mouseenter', 'clusters', () => map.getCanvas().style.cursor = 'pointer');
   map.on('mouseleave', 'clusters', () => map.getCanvas().style.cursor = '');
 }

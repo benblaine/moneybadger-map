@@ -103,6 +103,16 @@ To add a new category:
 4. Clean up the properties to match the schema above
 5. Drop the features into `merchants.json`
 
+## Validation
+
+Validate `merchants.json` for data quality and security:
+
+```bash
+node validate.js
+```
+
+Checks: required fields, valid categories, South Africa coordinate bounds, no HTML/script injection in text fields, valid image URLs.
+
 ## Performance
 
 MapLibre GL handles **50,000+ markers** with clustering enabled. You won't hit a wall like Google My Maps does at ~2,000.
