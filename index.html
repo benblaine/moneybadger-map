@@ -187,11 +187,19 @@ fetch('merchants.json')
 function tryInitLayers() {
   if (layersInitialized) return;
   layersInitialized = true;
-  initLayers();
+  try {
+    initLayers();
+    console.log('[MB] initLayers OK, source:', !!map.getSource('merchants'));
+  } catch (err) {
+    console.error('[MB] initLayers FAILED:', err);
+  }
   // Load brand images in background — pins show as colored dots until logos arrive
   loadBrandImages().then(() => {
+    console.log('[MB] brand images loaded:', loadedBrandImages.size);
     if (loadedBrandImages.size > 0) updateMap();
-  }).catch(() => {});
+  }).catch(err => {
+    console.error('[MB] brand image loading error:', err);
+  });
 }
 
 function loadBrandImages() {
